@@ -18,21 +18,53 @@ class ChatViewController: UIViewController {
     let db = Firestore.firestore()
     
     
-    var message : [Message] = [Message(sender: "1@2.com", body: "Hey!"), Message(sender: "a@b.com", body: "Hello!"), Message(sender: "1@2.com", body: "Whats up?") ]
+    var messages : [Message] = []
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
+//        messageTextfield.delegate = self
         tableView.dataSource = self
         tableView.delegate = self
         navigationItem.hidesBackButton =  true
         title = K.appName
         tableView.register(UINib(nibName: K.cellNibName, bundle: nil), forCellReuseIdentifier: K.cellIdentifier)
+        
+        loadMessages()
+        
+    }
+    
+    func loadMessages(){
+      
+        db.collection(K.FStore.collectionName).order(by: K.FStore.dateField).addSnapshotListener{ (querySnapshot, error) in
+            
+            self.messages = []
+            
+            if let e = error {
+                print(" there is an issue in retrieving data\(e)")
+            } else{
+                if let snapShotDocuments = querySnapshot?.documents{
+                    for doc in snapShotDocuments{
+                        let data = doc.data()
+                        if   let sender = data[K.FStore.senderField] as? String, let body = data[K.FStore.bodyField] as? String{
+                            let newMessage = Message(sender: sender, body: body)
+                            self.messages.append(newMessage)
+                            
+                            
+                            DispatchQueue.main.async {
+                                self.tableView.reloadData()
+                            }
+                           
+                        }
+                    }
+                }
+            }
+        }
     }
         @IBAction func sendPressed(_ sender: UIButton) {
             
             if let messageBody = messageTextfield.text, let messageSender = Auth.auth().currentUser?.email{
-                db.collection(K.FStore.collectionName).addDocument(data: [K.FStore.senderField : messageSender, K.FStore.bodyField: messageBody]) { error in
+                db.collection(K.FStore.collectionName).addDocument(data: [K.FStore.senderField : messageSender, K.FStore.bodyField: messageBody, K.FStore.dateField : Date().timeIntervalSince1970]) { error in
                     if let e = error {
                         print(e)
                     } else{
@@ -41,11 +73,6 @@ class ChatViewController: UIViewController {
                 }
                 
             }
-           
-            
-            
-            
-            
         }
         
         @IBAction func logoutButtonPressed(_ sender: UIBarButtonItem) {
@@ -60,18 +87,25 @@ class ChatViewController: UIViewController {
     }
 
 
-extension ChatViewController: UITableViewDataSource, UITableViewDelegate {
+extension ChatViewController: UITableViewDataSource, UITableViewDelegate , UITextFieldDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return message.count
+        return messages.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: K.cellIdentifier, for: indexPath) as! MessageCell
-        cell.label.text = message[indexPath.row].body
+        cell.label.text = messages[indexPath.row].body
         return cell
-       
     }
     
-    
-    
-}
+//    func textFieldDidBeginEditing(_ textField: UITextField) {
+//        print("Keyboard appear")
+//    }
+//
+//    func textFieldDidEndEditing(_ textField: UITextField) {
+//        messageTextfield.resignFirstResponder()
+//    }
+  
+    }
+
+
